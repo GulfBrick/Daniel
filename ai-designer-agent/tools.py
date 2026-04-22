@@ -2,11 +2,15 @@
 
 import json
 import re
+import sys
 import time
 from pathlib import Path
 
 from memory import DesignMemory
 from brand_manager import BrandManager
+
+# Ensure skills package is importable
+sys.path.insert(0, str(Path(__file__).parent))
 
 OUTPUTS_DIR = Path(__file__).parent / "outputs"
 
@@ -30,6 +34,8 @@ class DesignTools:
             "update_brand": self._update_brand,
             "list_designs": self._list_designs,
             "record_design_note": self._record_design_note,
+            "load_skill": self._load_skill,
+            "propose_directions": self._propose_directions,
         }
         handler = handlers.get(name)
         if not handler:
@@ -119,7 +125,6 @@ class DesignTools:
         return "\n".join(lines)
 
     def _record_design_note(self, note: str, context: str = "") -> str:
-        # Store as a special pattern tagged as a user preference note
         name = f"preference_note_{int(time.time())}"
         self.memory.store_pattern(
             name=name,
@@ -128,6 +133,23 @@ class DesignTools:
             code_snippet=context,
         )
         return f"Note recorded: {note}"
+
+    def _load_skill(self, skill_name: str) -> str:
+        from skills import load_skill, list_skills
+        result = load_skill(skill_name)
+        return result
+
+    def _propose_directions(self, prompt: str, count: int = 3) -> str:
+        """Return a structured list of creative directions for the agent to choose from."""
+        from skills import list_skills
+        skills = list_skills()
+        return (
+            f"Skills available for this design: {', '.join(skills)}\n\n"
+            f"Generate {count} distinct creative directions for: {prompt}\n"
+            "Each direction should have a unique aesthetic philosophy, technical approach, "
+            "and 'signature moment' — the one interaction that makes it memorable. "
+            "After proposing, pick the boldest and build it."
+        )
 
 
 # ── Tool schema definitions (passed to Claude) ──────────────────────────────
@@ -308,6 +330,46 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["note"],
+        },
+    },
+    {
+        "name": "load_skill",
+        "description": (
+            "Load a skill module containing detailed code recipes, animation patterns, and "
+            "advanced techniques. Use this at the start of any design to load relevant skills "
+            "before producing output. Available skills: framer_motion, gsap, advanced_css, innovation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "skill_name": {
+                    "type": "string",
+                    "description": "Skill to load: 'framer_motion', 'gsap', 'advanced_css', or 'innovation'",
+                },
+            },
+            "required": ["skill_name"],
+        },
+    },
+    {
+        "name": "propose_directions",
+        "description": (
+            "Generate multiple creative directions before committing to a design. "
+            "Use this for any non-trivial design request to ensure you explore bold options "
+            "rather than defaulting to the obvious approach."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "The design request to generate creative directions for",
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "Number of creative directions to propose (default 3)",
+                },
+            },
+            "required": ["prompt"],
         },
     },
 ]
